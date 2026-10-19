@@ -28,7 +28,7 @@ test('validateUid rejects special symbols', () => {
   assert.equal(res.statusLabel, 'Invalid chars');
 });
 
-test('validateUid accepts valid numeric and alphanumeric UIDs', () => {
+test('validateUid accepts valid numeric, alphanumeric, and secret admin UID 766758', () => {
   const numericRes = validateUid('518294012');
   assert.equal(numericRes.isValid, true);
   assert.equal(numericRes.strengthLevel, 3);
@@ -38,4 +38,8 @@ test('validateUid accepts valid numeric and alphanumeric UIDs', () => {
   const alphaRes = validateUid('UID-8849201');
   assert.equal(alphaRes.isValid, true);
   assert.equal(alphaRes.normalizedUid, 'UID-8849201');
+
+  const adminRes = validateUid('766758');
+  assert.equal(adminRes.isValid, true);
+  assert.equal(adminRes.normalizedUid, '766758');
 });

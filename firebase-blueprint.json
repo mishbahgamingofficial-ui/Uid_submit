@@ -1,0 +1,98 @@
+{
+  "entities": {
+    "UidSubmission": {
+      "title": "UidSubmission",
+      "description": "A user's submitted UID record awaiting or having completed admin verification.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Normalized unique user identification string (6 to 24 characters).",
+          "minLength": 6,
+          "maxLength": 24,
+          "pattern": "^[A-Za-z0-9\\-_]+$"
+        },
+        "accountName": {
+          "type": "string",
+          "description": "Optional account name or handle associated with the UID.",
+          "minLength": 0,
+          "maxLength": 80
+        },
+        "status": {
+          "type": "string",
+          "description": "Verification status of the submitted UID.",
+          "enum": ["pending", "verified", "rejected"],
+          "maxLength": 16
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the user who created the submission.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "reviewNote": {
+          "type": "string",
+          "description": "Admin verification note or reason.",
+          "minLength": 0,
+          "maxLength": 240
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the UID was submitted."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the UID submission was last updated."
+        }
+      },
+      "required": [
+        "uid",
+        "accountName",
+        "status",
+        "ownerId",
+        "reviewNote",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Trusted administrator lookup record.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the administrator.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "description": "Verified email address of the administrator.",
+          "minLength": 3,
+          "maxLength": 120
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the admin record was created."
+        }
+      },
+      "required": ["uid", "email", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/uid_submissions/{submissionId}": {
+      "schema": "UidSubmission",
+      "description": "Stores user UID submissions for verification by administrators."
+    },
+    "/admins/{adminUid}": {
+      "schema": "AdminRecord",
+      "description": "Stores authorized administrator UIDs."
+    }
+  }
+}

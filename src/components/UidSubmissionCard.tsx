@@ -8,13 +8,31 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  ShieldCheck,
 } from 'lucide-react';
 import { validateUid } from '../utils/uidValidation';
 import { IllustrationGraphic } from './IllustrationGraphic';
+import {
+  useUidSubmissions,
+  isSecretAdminUid,
+  ADMIN_SECRET_UID,
+  BLUEPRINT_CONSTRAINTS,
+} from '../services/uidSubmissionStore';
 
 type CardViewMode = 'form' | 'guide' | 'submitted';
 
-export const UidSubmissionCard: React.FC = () => {
+interface UidSubmissionCardProps {
+  onOpenAdminPanel: () => void;
+}
+
+export const UidSubmissionCard: React.FC<UidSubmissionCardProps> = ({
+  onOpenAdminPanel,
+}) => {
+  const { submissions, submitUidRecord } = useUidSubmissions();
+
   const [viewMode, setViewMode] = useState<CardViewMode>('form');
   const [uidInput, setUidInput] = useState<string>('');
   const [accountName, setAccountName] = useState<string>('');
@@ -23,16 +41,37 @@ export const UidSubmissionCard: React.FC = () => {
   const [copied, setCopied] = useState<boolean>(false);
   const [clipboardFeedback, setClipboardFeedback] = useState<string | null>(null);
   const [submittedAt, setSubmittedAt] = useState<string>('');
+  const [lastSubmittedId, setLastSubmittedId] = useState<string | null>(null);
 
   const validation = validateUid(uidInput);
+  const isAdminCodeTyped = isSecretAdminUid(uidInput);
   const showError = touched && !validation.isValid;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Look up live verification state of the user's submitted UID
+  const liveSubmission = submissions.find(
+    (s) =>
+      (lastSubmittedId && s.id === lastSubmittedId) ||
+      (validation.normalizedUid &&
+        s.uid.toLowerCase() === validation.normalizedUid.toLowerCase())
+  );
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setTouched(true);
+
+    // Check if the entered UID is the secret Admin UID (766758)
+    if (isSecretAdminUid(uidInput)) {
+      onOpenAdminPanel();
+      return;
+    }
+
     if (!validation.isValid) {
       return;
     }
+
+    const saved = await submitUidRecord(validation.normalizedUid, accountName);
+    setLastSubmittedId(saved.id);
+
     const now = new Date();
     setSubmittedAt(
       now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -56,7 +95,6 @@ export const UidSubmissionCard: React.FC = () => {
     } catch {
       // Fallback if clipboard permission is blocked in iframe
     }
-    // Deterministic fallback when clipboard is empty or blocked by browser permissions
     const fallbackUid = '849201563';
     setUidInput(fallbackUid);
     setTouched(true);
@@ -159,7 +197,7 @@ export const UidSubmissionCard: React.FC = () => {
         </div>
       </header>
 
-      {/* Recessed Layered Card Lip (Signature visual detail from reference figure) */}
+      {/* Recessed Layered Card Lip */}
       <div
         className="mx-5 h-3.5 rounded-t-[24px] bg-white/20 backdrop-blur-xs"
         aria-hidden="true"
@@ -187,7 +225,9 @@ export const UidSubmissionCard: React.FC = () => {
                   className={`rounded-[14px] border bg-white px-4 py-2.5 transition-all ${
                     showError
                       ? 'border-[#EF4444] bg-[#FEF2F2]/30'
-                      : 'border-[#E6E8F2] focus-within:border-[#4943E6] focus-within:shadow-[0_4px_20px_rgba(73,67,230,0.08)]'
+                      : isAdminCodeTyped
+                        ? 'border-[#231ECF] shadow-[0_4px_20px_rgba(35,30,207,0.12)]'
+                        : 'border-[#E6E8F2] focus-within:border-[#4943E6] focus-within:shadow-[0_4px_20px_rgba(73,67,230,0.08)]'
                   }`}
                 >
                   <label
@@ -201,6 +241,7 @@ export const UidSubmissionCard: React.FC = () => {
                       id="uid-input"
                       type={maskUid ? 'password' : 'text'}
                       value={uidInput}
+                      maxLength={BLUEPRINT_CONSTRAINTS.UID_MAX_LENGTH}
                       onChange={(e) => {
                         setUidInput(e.target.value);
                         if (clipboardFeedback) setClipboardFeedback(null);
@@ -214,7 +255,7 @@ export const UidSubmissionCard: React.FC = () => {
                       className="w-full text-[14px] font-semibold text-[#1F2233] placeholder:text-[#C2C6D8] placeholder:font-normal focus:outline-none bg-transparent font-mono-tabular"
                     />
 
-                    {/* Inline 3-Bar Format Indicator (Matches right card in figure) */}
+                    {/* Inline 3-Bar Format Indicator */}
                     {uidInput.trim().length > 0 && (
                       <div
                         className="flex items-center gap-2 shrink-0"
@@ -249,12 +290,18 @@ export const UidSubmissionCard: React.FC = () => {
                         </div>
                         <span
                           className={`text-[11px] font-semibold ${
-                            validation.isValid
-                              ? 'text-[#28C76F]'
-                              : 'text-[#F59E0B]'
+                            isAdminCodeTyped
+                              ? 'text-[#231ECF]'
+                              : validation.isValid
+                                ? 'text-[#28C76F]'
+                                : 'text-[#F59E0B]'
                           }`}
                         >
-                          {validation.isValid ? 'Valid' : validation.statusLabel}
+                          {isAdminCodeTyped
+                            ? 'Admin Key'
+                            : validation.isValid
+                              ? 'Valid'
+                              : validation.statusLabel}
                         </span>
                       </div>
                     )}
@@ -271,14 +318,20 @@ export const UidSubmissionCard: React.FC = () => {
                     <span>{validation.errorMessage}</span>
                   </p>
                 )}
-                {!showError && clipboardFeedback && (
+                {!showError && isAdminCodeTyped && (
+                  <p className="flex items-center gap-1.5 text-[12px] text-[#231ECF] font-semibold mt-1.5 pl-1">
+                    <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                    <span>Secret Admin UID recognized — press Enter to open Admin Panel</span>
+                  </p>
+                )}
+                {!showError && !isAdminCodeTyped && clipboardFeedback && (
                   <p className="text-[12px] text-[#4943E6] font-medium mt-1.5 pl-1">
                     {clipboardFeedback}
                   </p>
                 )}
               </div>
 
-              {/* Secondary Boxed Input (Matches 2-input rhythm of left screen in figure) */}
+              {/* Secondary Boxed Input */}
               <div className="rounded-[14px] border border-[#E6E8F2] bg-white px-4 py-2.5 focus-within:border-[#4943E6] focus-within:shadow-[0_4px_20px_rgba(73,67,230,0.08)] transition-all">
                 <label
                   htmlFor="account-name-input"
@@ -291,6 +344,7 @@ export const UidSubmissionCard: React.FC = () => {
                     id="account-name-input"
                     type="text"
                     value={accountName}
+                    maxLength={BLUEPRINT_CONSTRAINTS.ACCOUNT_NAME_MAX_LENGTH}
                     onChange={(e) => setAccountName(e.target.value)}
                     placeholder="nicholas@ergemla.com or username"
                     autoComplete="off"
@@ -318,7 +372,7 @@ export const UidSubmissionCard: React.FC = () => {
               type="submit"
               className="w-full h-[52px] mt-5 rounded-[14px] bg-gradient-to-r from-[#2823D5] via-[#7B5BF7] to-[#E385FA] hover:opacity-95 active:scale-[0.99] text-white text-[14px] font-semibold tracking-wide shadow-[0_12px_26px_-6px_rgba(115,82,246,0.48)] transition-all cursor-pointer"
             >
-              Submit UID
+              {isAdminCodeTyped ? 'Enter Admin Panel' : 'Submit UID'}
             </button>
 
             {/* Secondary Link Below Button */}
@@ -385,6 +439,22 @@ export const UidSubmissionCard: React.FC = () => {
                   <strong className="text-[#1F2233]">2. Copy UID:</strong> Copy
                   your 6–24 character numeric or alphanumeric ID.
                 </p>
+                <p>
+                  <strong className="text-[#1F2233]">Admin Verification:</strong>{' '}
+                  Enter secret admin UID{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUidInput(ADMIN_SECRET_UID);
+                      setTouched(true);
+                      setViewMode('form');
+                    }}
+                    className="font-mono-tabular font-bold text-[#352FDB] underline cursor-pointer"
+                  >
+                    {ADMIN_SECRET_UID}
+                  </button>{' '}
+                  in the UID field to launch the verification console.
+                </p>
               </div>
             </div>
 
@@ -403,11 +473,34 @@ export const UidSubmissionCard: React.FC = () => {
             <div className="pt-1">
               <IllustrationGraphic mode="success" />
 
-              <p className="text-[12px] font-semibold text-[#28C76F] mt-4">
-                UID Verified · {submittedAt}
-              </p>
+              {/* Live Verification Status Header */}
+              <div className="mt-4 flex items-center justify-center gap-1.5 text-[12px] font-semibold">
+                {(!liveSubmission || liveSubmission.status === 'pending') && (
+                  <span className="inline-flex items-center gap-1.5 text-[#D97706]">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>Pending Admin Verification · {submittedAt}</span>
+                  </span>
+                )}
+                {liveSubmission?.status === 'verified' && (
+                  <span className="inline-flex items-center gap-1.5 text-[#16A34A]">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>UID Verified by Admin · {submittedAt}</span>
+                  </span>
+                )}
+                {liveSubmission?.status === 'rejected' && (
+                  <span className="inline-flex items-center gap-1.5 text-[#DC2626]">
+                    <XCircle className="w-3.5 h-3.5" />
+                    <span>UID Verification Declined · {submittedAt}</span>
+                  </span>
+                )}
+              </div>
+
               <h2 className="text-[21px] font-bold text-[#1F2233] leading-snug mt-1.5 px-2 text-balance">
-                UID received and ready for the next step
+                {liveSubmission?.status === 'verified'
+                  ? 'Your UID has been verified and approved'
+                  : liveSubmission?.status === 'rejected'
+                    ? 'Please review and update your submitted UID'
+                    : 'UID received and queued for admin verification'}
               </h2>
 
               {/* Submitted UID Summary Card */}
@@ -423,6 +516,11 @@ export const UidSubmissionCard: React.FC = () => {
                   >
                     {validation.normalizedUid}
                   </span>
+                  {liveSubmission?.reviewNote && (
+                    <span className="block text-[11px] text-[#5A5E78] mt-1">
+                      Note: {liveSubmission.reviewNote}
+                    </span>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -451,13 +549,13 @@ export const UidSubmissionCard: React.FC = () => {
                 onClick={() => setViewMode('form')}
                 className="w-full h-[50px] rounded-[14px] bg-[#EFEDFD] hover:bg-[#E4E1FC] active:scale-[0.99] text-[#352FDB] text-[14px] font-bold transition-all cursor-pointer"
               >
-                Edit or Change UID
+                Edit or Submit Another UID
               </button>
             </div>
           </div>
         )}
 
-        {/* Bottom Home Indicator Bar (Matches reference figure) */}
+        {/* Bottom Home Indicator Bar */}
         <div
           className="w-32 h-1.5 rounded-full bg-[#DCDFE9] mx-auto mt-7"
           aria-hidden="true"
