@@ -1,0 +1,6 @@
+{
+  "name": "UID Submission Portal",
+  "description": "Clean, modern portal for submitting and verifying your unique user identification (UID).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
